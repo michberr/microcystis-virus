@@ -8,6 +8,7 @@ library(ggplot2)
 library(dplyr)
 library(magrittr)
 library(pander)
+library(pgirmess)
 panderOptions("table.split.table", Inf) 
 ```
 
@@ -103,22 +104,11 @@ There are 311 unique CRISPRs in this dataset
 ggplot(crisp, aes(x = Length, fill = Trophic)) + 
   geom_histogram(binwidth = 3) +
   facet_wrap(~Lake) + 
-  xlab("length (bp)")
-```
-
-<img src="Figs/unnamed-chunk-5-1.png" title="" alt="" style="display: block; margin: auto;" />
-
-```r
+  xlab("length (bp)") + 
   ggtitle("Microcystis culture DR lengths")
 ```
 
-```
-## $title
-## [1] "Microcystis culture DR lengths"
-## 
-## attr(,"class")
-## [1] "labels"
-```
+<img src="Figs/unnamed-chunk-5-1.png" title="" alt="" style="display: block; margin: auto;" />
 
 
 ## Number of DR types per culture
@@ -137,9 +127,11 @@ ggplot(crisp_count, aes(x = n)) +
 
 
 ## Most frequent DR's across samples
+    
 firstTrophy is the trophic state of the first sample of the given DR type.    
 nTrophy is the number of trophic statuses represented by all samples with that
-DR type. If nTrophy = 3, that DR is present in lakes of all trophic statuses.   
+DR type. If nTrophy = 3, that DR is present in lakes of all trophic statuses.    
+    
    
 
 ```r
@@ -176,8 +168,8 @@ AGTTCCAATTAATCTTAAACCCTATTAGGGATTGAAACC    5.285714       7      eutrophic      
 
 AGTTTCAATCCCTAATAGGGTTTAAGATTAATTGGAACC    8.500000       4      eutrophic       2    
 --------------------------------------------------------------------------------------
-
-
+  
+    
 ## Are we double counting DR's with their reverse complement?
 
 
@@ -283,6 +275,153 @@ GTTGTGATTTGCTTTCAGATTATGTTCTTTGATAGATTGCGTACAGA    108.0000       1     mesotrop
 
      AACTGATAACTGATAACTGATAACTGATAACTGATAA         88.0000        1      eutrophic       1    
 ----------------------------------------------------------------------------------------------
+
+## Most frequent DR
+
+```r
+freq_dr <- crisp %>%
+  filter(DR == "CCTTACCTATTAGGTCAAATAGGATTAGTTGGAAAC") 
+
+freq_dr %>%
+  ggplot(aes(x = nSpacers, fill = Trophic)) + 
+    geom_histogram(binwidth = 5) +
+    facet_wrap(~Lake) 
+```
+
+<img src="Figs/unnamed-chunk-13-1.png" title="" alt="" style="display: block; margin: auto;" />
+
+```r
+freq_dr %>%
+  ggplot(aes(x = nSpacers, fill = Trophic, group = Trophic)) + 
+    geom_density(alpha = .7)
+```
+
+<img src="Figs/unnamed-chunk-13-2.png" title="" alt="" style="display: block; margin: auto;" />
+
+```r
+kruskal.test(nSpacers ~ Trophic, data = freq_dr)
+```
+
+```
+## 
+## 	Kruskal-Wallis rank sum test
+## 
+## data:  nSpacers by Trophic
+## Kruskal-Wallis chi-squared = 13.959, df = 2, p-value = 0.0009306
+```
+
+```r
+kruskalmc(nSpacers ~ Trophic, data = freq_dr)
+```
+
+```
+## Multiple comparison test after Kruskal-Wallis 
+## p.value: 0.05 
+## Comparisons
+##                            obs.dif critical.dif difference
+## eutrophic-mesotrophic     4.166667    12.249262      FALSE
+## eutrophic-oligotrophic   12.854167     8.493335       TRUE
+## mesotrophic-oligotrophic  8.687500    11.395004      FALSE
+```
+
+## Second most frequent DR
+
+```r
+freq_dr_2 <- crisp %>%
+  filter(DR == "CTTTTAACTTCTTAGCAAGTTTAATTAATGGAAAC")
+
+freq_dr_2 %>%
+  ggplot(aes(x = nSpacers, fill = Trophic)) + 
+    geom_histogram(binwidth = 25) +
+    facet_wrap(~Lake)
+```
+
+<img src="Figs/unnamed-chunk-14-1.png" title="" alt="" style="display: block; margin: auto;" />
+
+```r
+freq_dr_2 %>%  
+  ggplot(aes(x = nSpacers, fill = Trophic, group = Trophic)) + 
+    geom_density(alpha = .7)
+```
+
+<img src="Figs/unnamed-chunk-14-2.png" title="" alt="" style="display: block; margin: auto;" />
+
+```r
+kruskal.test(nSpacers ~ Trophic, data = freq_dr_2)
+```
+
+```
+## 
+## 	Kruskal-Wallis rank sum test
+## 
+## data:  nSpacers by Trophic
+## Kruskal-Wallis chi-squared = 15.075, df = 2, p-value = 0.0005327
+```
+
+```r
+kruskalmc(nSpacers ~ Trophic, data = freq_dr_2)
+```
+
+```
+## Multiple comparison test after Kruskal-Wallis 
+## p.value: 0.05 
+## Comparisons
+##                           obs.dif critical.dif difference
+## eutrophic-mesotrophic     1.06250     12.05934      FALSE
+## eutrophic-oligotrophic   12.53125      8.52724       TRUE
+## mesotrophic-oligotrophic 11.46875     11.00862       TRUE
+```
+
+## Third most frequent DR
+
+```r
+freq_dr_3 <- crisp %>%
+  filter(DR == "CTTCTGACTTCCTCGGAAGTTGAATTAATGGAAAC")
+
+freq_dr_3 %>%
+  ggplot(aes(x = nSpacers, fill = Trophic)) + 
+    geom_histogram(binwidth = 25) +
+    facet_wrap(~Lake)
+```
+
+<img src="Figs/unnamed-chunk-15-1.png" title="" alt="" style="display: block; margin: auto;" />
+
+```r
+freq_dr_3 %>%  
+  ggplot(aes(x = nSpacers, fill = Trophic, group = Trophic)) + 
+    geom_density(alpha = .7)
+```
+
+<img src="Figs/unnamed-chunk-15-2.png" title="" alt="" style="display: block; margin: auto;" />
+
+```r
+kruskal.test(nSpacers ~ Trophic, data = freq_dr_3)
+```
+
+```
+## 
+## 	Kruskal-Wallis rank sum test
+## 
+## data:  nSpacers by Trophic
+## Kruskal-Wallis chi-squared = 9.3443, df = 2, p-value = 0.009352
+```
+
+```r
+kruskalmc(nSpacers ~ Trophic, data = freq_dr_3)
+```
+
+```
+## Multiple comparison test after Kruskal-Wallis 
+## p.value: 0.05 
+## Comparisons
+##                           obs.dif critical.dif difference
+## eutrophic-mesotrophic    1.166667    10.926973      FALSE
+## eutrophic-oligotrophic   9.380952     8.260015       TRUE
+## mesotrophic-oligotrophic 8.214286     9.597270      FALSE
+```
+
+
+```
 
 # Next steps
 

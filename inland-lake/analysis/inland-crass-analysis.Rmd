@@ -24,6 +24,7 @@ library(ggplot2)
 library(dplyr)
 library(magrittr)
 library(pander)
+library(pgirmess)
 panderOptions("table.split.table", Inf) 
 
 ```
@@ -89,7 +90,7 @@ There are `r n_crisprs` unique CRISPRs in this dataset
 ggplot(crisp, aes(x = Length, fill = Trophic)) + 
   geom_histogram(binwidth = 3) +
   facet_wrap(~Lake) + 
-  xlab("length (bp)")
+  xlab("length (bp)") + 
   ggtitle("Microcystis culture DR lengths")
 
 
@@ -111,9 +112,11 @@ ggplot(crisp_count, aes(x = n)) +
 
 
 ## Most frequent DR's across samples
+    
 firstTrophy is the trophic state of the first sample of the given DR type.    
 nTrophy is the number of trophic statuses represented by all samples with that
-DR type. If nTrophy = 3, that DR is present in lakes of all trophic statuses.   
+DR type. If nTrophy = 3, that DR is present in lakes of all trophic statuses.    
+    
    
 ```{r}
 crisp %>%
@@ -124,10 +127,9 @@ crisp %>%
   slice(1:10) %>%
   pander() 
 
-
 ```
-
-
+  
+    
 ## Are we double counting DR's with their reverse complement?
 
 ```{r}
@@ -184,6 +186,64 @@ crisp %>%
   arrange(desc(meanNSpacers)) %>%
   slice(1:10) %>%
   pander() 
+```
+
+## Most frequent DR
+```{r}
+freq_dr <- crisp %>%
+  filter(DR == "CCTTACCTATTAGGTCAAATAGGATTAGTTGGAAAC") 
+
+freq_dr %>%
+  ggplot(aes(x = nSpacers, fill = Trophic)) + 
+    geom_histogram(binwidth = 5) +
+    facet_wrap(~Lake) 
+
+freq_dr %>%
+  ggplot(aes(x = nSpacers, fill = Trophic, group = Trophic)) + 
+    geom_density(alpha = .7)
+
+kruskal.test(nSpacers ~ Trophic, data = freq_dr)
+kruskalmc(nSpacers ~ Trophic, data = freq_dr)
+```
+
+## Second most frequent DR
+```{r}
+
+freq_dr_2 <- crisp %>%
+  filter(DR == "CTTTTAACTTCTTAGCAAGTTTAATTAATGGAAAC")
+
+freq_dr_2 %>%
+  ggplot(aes(x = nSpacers, fill = Trophic)) + 
+    geom_histogram(binwidth = 25) +
+    facet_wrap(~Lake)
+
+freq_dr_2 %>%  
+  ggplot(aes(x = nSpacers, fill = Trophic, group = Trophic)) + 
+    geom_density(alpha = .7)
+
+kruskal.test(nSpacers ~ Trophic, data = freq_dr_2)
+kruskalmc(nSpacers ~ Trophic, data = freq_dr_2)
+```
+
+## Third most frequent DR
+```{r}
+freq_dr_3 <- crisp %>%
+  filter(DR == "CTTCTGACTTCCTCGGAAGTTGAATTAATGGAAAC")
+
+freq_dr_3 %>%
+  ggplot(aes(x = nSpacers, fill = Trophic)) + 
+    geom_histogram(binwidth = 25) +
+    facet_wrap(~Lake)
+
+freq_dr_3 %>%  
+  ggplot(aes(x = nSpacers, fill = Trophic, group = Trophic)) + 
+    geom_density(alpha = .7)
+
+kruskal.test(nSpacers ~ Trophic, data = freq_dr_3)
+kruskalmc(nSpacers ~ Trophic, data = freq_dr_3)
+```
+
+
 ```
 
 # Next steps

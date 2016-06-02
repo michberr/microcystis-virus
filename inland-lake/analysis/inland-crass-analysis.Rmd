@@ -1,0 +1,157 @@
+---
+title: "CRISPRs from inland lake *Microcystis* cultures"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(DT)
+library(magrittr)
+
+```
+
+#### Read in Crass data
+```{r}
+setwd("~/git_repos/chabs-virus/inland-lake/data/crispr-stats/")
+
+# Read in a list of sample dataframes 
+crispr_dfs <- lapply(dir(), function(x) {read.csv(x, sep = "\t")} )
+names(crispr_dfs) <- dir() %>%
+  substr(1, 12)
+
+# Add a column to each dataframe with the sample name
+crispr_dfs <- Map( 
+  function(df, name) {
+    mutate(df, Sample = name)
+  }, 
+  crispr_dfs, 
+  names(crispr_dfs)
+)
+
+crisp <- do.call(what = "rbind", args = crispr_dfs)
+
+names(crisp) <- c("GID", "DR", "DRVariants", "Length", "nSpacers", 
+  "meanSpLength", "meanSpCoverage", "nFlankers", "meanFlLength", "Reads", "Sample")
+
+```
+
+#### Read in inland lake metadata 
+```{r}
+sample_data <- read.csv("~/git_repos/chabs-virus/inland-lake/data/mc-inland-sampledata.csv")
+
+# Join with crass data
+crisp %<>%
+  mutate(SampleDigits = as.numeric(substr(Sample, 8, 12))) %>%
+  left_join(sample_data, by = c("SampleDigits" = "SampleID"))
+  
+
+
+```
+
+
+```{r}
+
+head(crisp)
+
+n_crisprs <- length(levels(crisp$DR))
+
+```
+
+There are `r n_crisprs` unique CRISPRs in this dataset
+
+# Direct repeat length
+```{r, fig.width=10, fig.height=7}
+ggplot(crisp, aes(x = Length, fill = Trophic)) + 
+  geom_histogram(binwidth = 3) +
+  facet_wrap(~Lake) + 
+  ggtitle("Microcystis culture DR lengths")
+
+
+```
+
+# Number of spacers per DR type
+```{r, fig.width=10, fig.height=7}
+ggplot(crisp, aes(x = nSpacers, fill = Trophic)) + 
+  geom_histogram(binwidth = 10) +
+  facet_wrap(~Lake) + 
+  ggtitle("Number of spacers associated with each DR")
+
+```
+
+# Number of DR types per culture
+```{r}
+crisp_count <- crisp %>%
+  count(Sample) %>%
+  arrange(n)
+
+ggplot(crisp_count, aes(x = n)) +
+  geom_histogram(binwidth = 5) +
+  ggtitle("Number of DR's in each sample")
+
+
+```
+
+# DR's with highest mean spacer count
+```{r}
+crisp %>%
+  group_by(DR) %>%
+  summarize(meanNSpacers = mean(nSpacers), count = n(), firstTrophy = first(Trophic),
+            distTrophy = n_distinct(Trophic)) %>%
+  arrange(desc(meanNSpacers)) %>%
+  datatable()
+```
+
+# Most frequent DR's across samples
+```{r}
+crisp %>%
+  group_by(DR) %>%
+  summarize(meanNSpacers = mean(nSpacers), count = n(),  firstTrophy = first(Trophic),
+            distTrophy = n_distinct(Trophic)) %>%
+  arrange(desc(count)) %>%
+  datatable()
+
+
+```
+
+
+## Are we double counting DR's with their reverse complement?
+
+```{r}
+# Look for the reverse complement of the most common DR (in 29 samples)
+# CCTTACCTATTAGGTCAAATAGGATTAGTTGGAAAC
+match1 <- grep(pattern = "GTTTCCAACTAATCCTATTTGACCTAATAGGTAAGG", x = crisp$DR)
+
+crisp$DR[match1]
+
+```
+So these are not the same, but they are very similar with just a couple of extra
+nucleotides thrown in . . . interesting
+
+
+
+```{r}
+# Look for the reverse complement of the second most common DR (in 28 samples)
+# CTTTTAACTTCTTAGCAAGTTTAATTAATGGAAAC
+match2 <- grep(pattern = "GTTTCCATTAATTAAACTTGCTAAGAAGTTAAAAG", x = crisp$DR)
+
+crisp$DR[match2]
+
+```
+
+Same thing
+
+# Next steps
+
+- Make a phylogeny of DR's
+- See if there is correlation with the 16S (seems like no)
+- Can we identify core DR's and group them with their "variants"? Does this tell
+us anything new
+- Are DR's associated with any other host trait?
+- Similarity of spacers between isolates from the same lake vs different lakes -
+can we answer this with any existing database? 
+

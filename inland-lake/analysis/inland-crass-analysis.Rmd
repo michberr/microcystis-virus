@@ -7,6 +7,17 @@ output:
     code_folding: show
 ---
 
+```{r global_options, echo = FALSE}
+
+knitr::opts_chunk$set(
+  fig.align = 'center', 
+  fig.path = 'Figs/',
+  warning = FALSE, 
+  message = FALSE
+)
+
+```
+
 ```{r, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(dplyr)

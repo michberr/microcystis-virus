@@ -22,8 +22,9 @@ knitr::opts_chunk$set(
 ```{r, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(dplyr)
-library(DT)
 library(magrittr)
+library(pander)
+panderOptions("table.split.table", Inf) 
 
 ```
 
@@ -59,7 +60,12 @@ sample_data <- read.csv("~/git_repos/chabs-virus/inland-lake/data/mc-inland-samp
 # Join with crass data
 crisp %<>%
   mutate(SampleDigits = as.numeric(substr(Sample, 8, 12))) %>%
-  left_join(sample_data, by = c("SampleDigits" = "SampleID"))
+  left_join(sample_data, by = c("SampleDigits" = "SampleID")) 
+
+crisp$Lake = factor(crisp$Lake, levels = c("Gull", "Lee", "Little Long",
+    "Sixteen", "Baker", "Kent ", "Lansing", "Sherman", "Baseline", "Ford",
+    "MSU Lake1", "MSU Lake2", "MSU Lake3", "Wintergreen"
+))
   
 
 
@@ -76,26 +82,21 @@ n_crisprs <- length(levels(crisp$DR))
 
 There are `r n_crisprs` unique CRISPRs in this dataset
 
-# Direct repeat length
+# Direct Repeats
+
+## Direct repeat length
 ```{r, fig.width=10, fig.height=7}
 ggplot(crisp, aes(x = Length, fill = Trophic)) + 
   geom_histogram(binwidth = 3) +
   facet_wrap(~Lake) + 
+  xlab("length (bp)")
   ggtitle("Microcystis culture DR lengths")
 
 
 ```
 
-# Number of spacers per DR type
-```{r, fig.width=10, fig.height=7}
-ggplot(crisp, aes(x = nSpacers, fill = Trophic)) + 
-  geom_histogram(binwidth = 10) +
-  facet_wrap(~Lake) + 
-  ggtitle("Number of spacers associated with each DR")
 
-```
-
-# Number of DR types per culture
+## Number of DR types per culture
 ```{r}
 crisp_count <- crisp %>%
   count(Sample) %>%
@@ -103,29 +104,25 @@ crisp_count <- crisp %>%
 
 ggplot(crisp_count, aes(x = n)) +
   geom_histogram(binwidth = 5) +
-  ggtitle("Number of DR's in each sample")
+  ggtitle("Number of DR types in each culture")
 
 
 ```
 
-# DR's with highest mean spacer count
-```{r}
-crisp %>%
-  group_by(DR) %>%
-  summarize(meanNSpacers = mean(nSpacers), count = n(), firstTrophy = first(Trophic),
-            distTrophy = n_distinct(Trophic)) %>%
-  arrange(desc(meanNSpacers)) %>%
-  datatable()
-```
 
-# Most frequent DR's across samples
+## Most frequent DR's across samples
+firstTrophy is the trophic state of the first sample of the given DR type.    
+nTrophy is the number of trophic statuses represented by all samples with that
+DR type. If nTrophy = 3, that DR is present in lakes of all trophic statuses.   
+   
 ```{r}
 crisp %>%
   group_by(DR) %>%
   summarize(meanNSpacers = mean(nSpacers), count = n(),  firstTrophy = first(Trophic),
-            distTrophy = n_distinct(Trophic)) %>%
+            nTrophy = n_distinct(Trophic)) %>%
   arrange(desc(count)) %>%
-  datatable()
+  slice(1:10) %>%
+  pander() 
 
 
 ```
@@ -156,6 +153,38 @@ crisp$DR[match2]
 ```
 
 Same thing
+
+# Spacers
+
+## Mean length of spacers
+```{r, fig.width=10, fig.height=7}
+ggplot(crisp, aes(x = meanSpLength, fill = Trophic)) + 
+  geom_histogram(binwidth = 10) +
+  facet_wrap(~Lake) + 
+  ggtitle("Mean spacer length")
+
+```
+
+## Number of spacers per DR type
+```{r, fig.width=10, fig.height=7}
+ggplot(crisp, aes(x = nSpacers, fill = Trophic)) + 
+  geom_histogram(binwidth = 20) +
+  facet_wrap(~Lake) + 
+  ggtitle("Number of spacers associated with each DR")
+
+```
+
+
+## DR's with highest mean spacer count
+```{r}
+crisp %>%
+  group_by(DR) %>%
+  summarize(meanNSpacers = mean(nSpacers), count = n(), firstTrophy = first(Trophic),
+            nTrophy = n_distinct(Trophic)) %>%
+  arrange(desc(meanNSpacers)) %>%
+  slice(1:10) %>%
+  pander() 
+```
 
 # Next steps
 

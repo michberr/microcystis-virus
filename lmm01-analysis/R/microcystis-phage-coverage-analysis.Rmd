@@ -1,0 +1,273 @@
+---
+title: "Lake Erie lmm-01 analysis"
+author: "Michelle Berry"
+date: "July 27, 2016"
+output: html_document
+---
+
+#### This is an analysis to examine reads mapping to the lmm-01 microcystis phage genome from both the Lake Erie viromes and bacterial metagenomes collected in summer 2014. 
+
+
+```{r global_options, echo = FALSE}
+
+knitr::opts_chunk$set(
+  warning = FALSE, 
+  message = FALSE
+)
+
+```
+
+```{r}
+library(ggplot2)
+library(gtable)
+library(gridExtra)
+library(RColorBrewer)
+library(cowplot)
+library(dplyr)
+
+theme_set(theme_grey())
+mydir = "~/git_repos/mc-phage/"
+```
+
+First, read the coverage file to make a plot with x-axis: Total cumulated coverage, 
+and y-axis: % of genome covered (across all erie viromes and metagenomes)
+```{r}
+# plotting theme
+theme1 <- theme(
+  axis.text = element_text(color = "black", size = 10), 
+  axis.ticks = element_line(color = "black"), 
+  legend.text = element_text(size = 8)
+)
+
+
+# read in data
+lmm01_coverage <- read.csv("../data/lmm01-bam/All_lmm01_coverage.csv")
+
+# plot
+coverage_plot <- ggplot(data = lmm01_coverage, aes(x = coverage, y = length_covered, fill = sample)) + 
+  geom_point(pch = 21, size = 5) + 
+  xlab("Total cumulative coverage depth") +
+  ylab("% of genome covered by Erie metagenome reads") + 
+  ggtitle("Summary of coverage depth and breadth \n of lmm01 in Lake Erie samples") +
+  theme1 
+
+ggsave(filename = "../plots/coverage-plot.pdf", plot = coverage_plot, width = 6, height = 5)
+```
+
+Second, we read the detailed coverage file (listing all hits) to check the distribution 
+of Id% and be able to do recruitment plots
+```{r}
+colors <- brewer.pal(4, "Set1")
+
+# Read in detailed coverage data
+recruit <- read.csv("../data/lmm01-bam/lmm01-recruitment.csv")
+recruit$Genome <- "lmm01"
+
+recruit$Sample <- factor(recruit$Sample, labels = c("ViromeJuly8", "ViromeAug4", "ViromeSept29", "ViromeOct20"))
+
+
+# theme for recruitment distribution plots
+theme_2 <- theme(
+  axis.text = element_text(color = "black", size = 10),
+  axis.ticks = element_line(color = "black"),
+  legend.position = "none"
+)
+
+# Plot histogram
+hist_1 <- ggplot(data = recruit, aes(x = Id)) + 
+  geom_histogram(binwidth = 1, fill = "blue") + 
+  theme_2 +
+  ggtitle("lmm01 recruitment distribution across all samples")
+
+ggsave(filename = "../plots/hist1.pdf", plot = hist_1, width = 6, height = 5)
+
+hist_1
+
+# Plot histograms separately for each sample 
+hist_2 <- ggplot(data = recruit, aes(x = Id, fill = Sample)) + 
+  geom_histogram(binwidth = 1) +
+  facet_wrap(~Sample) + 
+  theme_2 +
+  ggtitle("lmm01 recruitment distribution per Sample")
+
+ggsave(filename = "../plots/hist2.pdf", plot = hist_2, width = 6, height = 5)
+
+hist_2
+```
+
+This plot shows there is very different coverage between samples
+```{r fig.height=8, fig.width=6}
+
+# Plot histograms separately for each sample adjusting the y axis
+hist_3 <- ggplot(data = recruit, aes(x = Id, fill = Sample)) + 
+  geom_histogram(binwidth = 1) +
+  facet_grid(Sample~., scales = "free_y") + 
+  theme_2 +
+  ggtitle("lmm01 recruitment distribution per Sample \n adj. y-axis")
+
+ggsave(filename = "../plots/hist3.pdf", plot = hist_3, width = 6, height = 8)
+
+hist_3
+```
+
+Then we generate recruitment plots for each sample 
+```{r}
+
+# Max length of genome
+max_length = max(recruit$Stop)
+
+# Final matrix to store coverage
+coverage <- matrix(data = NA, nrow = 0, ncol = 3)
+
+# Change this value to modify the size of the sliding window, 
+# larger sliding window (e.g. max_length/20) will be more smoothed, 
+# smaller window (e.g. max_length/100) will be more detailed
+window_size_half <- max_length/50  
+
+# Can lower this value (e.g. max_length/100) if the coverage computation is too long
+step <- max_length/500 
+```
+
+Max length is `r max_length`.     
+Window size half is `r window_size_half`.    
+Step is `r step`.     
+
+```{r}
+# Calculate coverage for each sample
+for (samp in levels(recruit$Sample)) {
+  
+  # Filter dataframe to one sample
+  recruit_sample <- filter(recruit, Sample == samp)
+  
+  # Genearte a matrix to hold coverage for each sample 
+  coverage_sample <- matrix(0, max_length, 1)
+  for (i in 1:nrow(recruit_sample)) {
+    for (j in recruit_sample[i,2]:recruit_sample[i,3]) {
+      coverage_sample[j,1] <- coverage_sample[j,1] + 1
+    }
+  }
+  
+  i = 1
+  while (i < max_length) {
+    total <- 2 * window_size_half 
+    boundary_start <- i - window_size_half
+    if (boundary_start < 0) {
+      total <- total + boundary_start
+      boundary_start <- 0
+    }
+    boundary_stop <- i + window_size_half
+    if (boundary_stop > max_length) {
+      total <- total - (boundary_stop - max_length)
+      boundary_stop <- max_length
+    }
+    cover <- sum(coverage_sample[boundary_start:boundary_stop, 1])/total
+    new_vec <- c(i, cover, samp)
+    coverage <- rbind(coverage, new_vec)
+    i <- i + step
+  }
+  
+}
+
+# Format coverage data.frame
+coverage <- data.frame(coverage, row.names = NULL)
+colnames(coverage) <- c("Coord", "Coverage", "Sample")
+coverage$Coord <- as.numeric(as.character(coverage$Coord))
+coverage$Coverage <- as.numeric(as.character(coverage$Coverage))
+
+```
+
+
+We have the coverage on sliding windows, let's do the plots 
+```{r}  
+  
+# Start with the actual recruitment plot
+plot_1 <- ggplot(data = recruit, aes(xmin = Start, xmax = Stop, ymin = Id, ymax = Id, color = Sample, name = Sample)) + 
+  scale_y_continuous(limits = c(60, 101), breaks = c(60, 80, 100)) + 
+  ylab("% Identity") + 
+  xlab("Genomic position (bp)") + 
+  scale_x_continuous(limits = c(0, max_length)) + 
+  geom_rect(size = 0.7, alpha = 0.8) + 
+  guides(fill = FALSE, col = guide_legend(override.aes = list(alpha = 1, size = 1 ))) + 
+  ggtitle("lmm-01") +  
+  theme(
+    title = element_text(size = 8, lineheight = 0.8), 
+    text = element_text(size = 8, lineheight = 0.8),
+    legend.position = 'left',
+    legend.justification = 'center', 
+    legend.text = element_text(size = 6), legend.key.size = unit(0.5,"line"),
+    axis.text = element_text(color = "black",size = 8),
+    axis.ticks = element_line(color = "black")
+  ) + 
+  scale_color_manual(name = "Samples", values = colors)
+
+ggsave("../plots/plot1.pdf")
+plot_1
+
+# Then the bottom coverage plot
+ratio.display <- 50
+ratio.values <- (max(coverage$Coord) - min(coverage$Coord))/(max(coverage$Coverage) -
+  min(coverage$Coverage))
+
+ plot_2 <- ggplot(data = coverage, aes(x = Coord, y = Coverage, group = Sample, color = Sample, name = Sample))  + 
+  scale_x_continuous(limits = c(0, max_length)) + 
+  scale_y_log10() + 
+  ylab("Log10(coverage)") +  
+  xlab("Genomic position (bp)") +
+  geom_line(size = 0.4, alpha = 0.8) + 
+  guides(
+    fill = FALSE, 
+    col = guide_legend(override.aes = list(alpha = 1, size = 3))
+  ) + 
+  theme(
+    text = element_text(size = 8, lineheight = 0.8),  
+    legend.position = 'left', 
+    legend.justification = 'center',
+    axis.text = element_text(color = "black", size = 8),
+    axis.ticks = element_line(color = "black")
+  ) + 
+  scale_color_manual(values = colors) 
+
+ggsave("../plots/plot2.pdf")
+plot_2
+
+
+# Then the read Id% distribution
+plot_3 <- ggplot(data = recruit, aes(x = Id - 1)) + 
+  geom_histogram(position = "identity", alpha = 0.6)  + 
+  scale_x_continuous(limits = c(60, 101)) + 
+  coord_flip()  +  
+  ylab("Counts") + 
+  guides(fill = FALSE, col = guide_legend(override.aes = list(alpha = 1, size = 3), ncol = 1)) + 
+  ggtitle("") + 
+  theme(
+    title = element_text(size = 8,lineheight = .8), 
+    text = element_text(size = 8,lineheight = .8),
+    legend.position = 'right',
+    legend.justification = 'center', 
+    axis.title.y = element_blank(),
+    axis.text = element_text(color = "black", size = 8),
+    axis.ticks = element_line(color = "black")
+  )
+
+ggsave("../plots/plot3.pdf")
+plot_3
+```
+
+Then we put all of these together as nicely as we can
+```{r fig.width=12, fig.height=8}
+
+  
+gp <- ggplotGrob(plot_1)
+gp2 <- ggplotGrob(plot_2)
+gp3 <- ggplotGrob(plot_3)
+maxWidth = grid::unit.pmax(gp$widths[2:5], gp2$widths[2:5])
+gp$widths[2:5] <- as.list(maxWidth)
+gp2$widths[2:5] <- as.list(maxWidth)
+pdf(file = "../plots/lmm01-combined-plot.pdf", width = 13, height = 6, useDingbats = F)
+final_plot <- grid.arrange(gp, gp3, gp2, nrow = 2, ncol = 2, widths = c(8,2))
+dev.off()
+
+ggdraw() +
+  draw_plot(final_plot, x = 0.04, y = 0, width = .96, height = .96)
+
+```

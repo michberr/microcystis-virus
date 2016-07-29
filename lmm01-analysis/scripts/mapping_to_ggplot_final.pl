@@ -24,22 +24,6 @@ my %th_reads_TOV=("PSAHP1_revcom_reperm_ORF00031"=>50); #  We used 50 by default
 # my $palette_file="Color_palette.tsv";
 my $code_other="Other_TOV90";
 
-# loading palette
-# open my $tsv,"<",$palette_file;
-# my %col_to_code;
-# while(<$tsv>){
-# 	chomp($_);
-# 	if ($_=~/^##/){}
-# 	else{
-# 		my @tab=split("\t",$_);
-# 		$col_to_code{$tab[0]}{"html"}=$tab[1];
-# 		$col_to_code{$tab[0]}{"rgb"}=$tab[2]." ".$tab[3]." ".$tab[4];
-# 	}
-# }
-# close $tsv;
-# my @tab_col=keys %col_to_code;
-# fisher_yates_shuffle(\@tab_col);
-# my @tab_color_60=@tab_col;
 
 my $k=0;
 my %counts;
@@ -50,8 +34,8 @@ open my $s1,">",$out_file;
 print $s1 "Genome,Start,Stop,Id,Sample\n";
 foreach my $bam_file (@list){
 	#if ($bam_file=~/All_TOV_90/){next;} # We don't want a recruitment from the merged bam files of all samples
-	$bam_file=~/lmm01-bam\/(\w+)-lmm01-align.bam_sorted.bam/;
-	my $sample_name=$1;
+	$bam_file=~/(\w+)-bam\/(\w+)-(\w+)-align.bam_sorted.bam/;
+	my $sample_name=$2;
 	print "$bam_file\t$sample_name\n";
 	my %store_hit=();
 	my %count=();
@@ -116,34 +100,7 @@ foreach my $bam_file (@list){
 			}
 			print "$sample_name_g - $genome - $count{$genome}\n";
 		}
-		# if ($tag==1){
-		# 	#if (!defined($tab_color_60[$k])){
-		# 	#	print "!! Pblm, we are at the end of the color table: $k\n";
-		# 	#}
-		# 	$store_col{$sample_name}=$tab_color_60[$k];
-		# 	$k++;	
-		# }
+		
 }
 close $s1;
 
-# # Print in stdout the vector including the color code for all samples
-# print "col<-c(";
-# foreach(sort keys %store_col){
-# 	if ($store_col{$_} eq ""){print "!!!!!!!!!!!!!!!!!!!!!!!!! $_\n";}
-# 	print "\"$_\"=\"{$store_col{$_}}{html}\",";
-# }
-# print "\"$code_other\"=\"gray64\"";
-# print ")\n";
-
-
-
-
-# sub fisher_yates_shuffle {
-# 	my $deck = shift;  # $deck is a reference to an array
-# 	return unless @$deck; # must not be empty!
-# 	my $i = @$deck;
-# 	while (--$i) {
-# 		my $j = int rand ($i+1);
-# 		@$deck[$i,$j] = @$deck[$j,$i];
-# 	}
-# }

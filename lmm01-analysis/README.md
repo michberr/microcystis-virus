@@ -18,7 +18,6 @@ python, perl, bash scripts to get from bam files to R
 
 ### Microcystis phage genomes
 Microcystis phage genomes, lmm01 and MaMV, were pulled from genbank.    
-Accession numbers: 
 
 ### Samples
 Running bowtie2 requires having the fastq files from each sample. These fastq files are stored on Greg's servers, and information on their location and sample numbers can be found [here](https://docs.google.com/spreadsheets/d/1MB-bntCNatELKqN2KJJiZtJ41XpM4rnIJbS4dBqwZ6Q/edit#gid=0).      
@@ -36,7 +35,7 @@ Globus was used to transfer to flux.
 
 Note: bowtie2 first tries to map the reads “consistently” (considering mate pair information), then separately if the pair doesn’t seem to match the same contig. This process is guided by the max insert size parameter (-X above). For our purposes, this was set at 2000. The insert size of the mapped Tara dataset centered around ~150 to 400bp, but anomolous much longer inserts did occur. Since this the `-X` is a maximum, an inflated (and unrealistic) value was used to cast a wide net and capture all mapped pairs. This has little to no effect on the mapping on itself, and mostly impacts the summary that bowtie2 provides (% of reads mapped consistently, inconsistently, etc).
 
-The resulting bam files can be found in the directory **data** followed by  the subdirectory for each complete *Microcystis* genome. **There will also be a merged bam file that contains the mapping results of all reads from all samples. (???)**
+The resulting bam files can be found in the directory **data** followed by  the subdirectory for each complete *Microcystis* genome. 
 
 **2) Bam files need to be indexed and sorted.**       
 The script `sort-index-bam.sh` is used for this purpose, but currently needs some updating to run generically.      

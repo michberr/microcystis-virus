@@ -1,0 +1,513 @@
+---
+title: "CRISPRs from Lake Erie *Microcystis*"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    keep_md: true
+    code_folding: show
+---
+
+```{r global_options, echo = FALSE}
+
+knitr::opts_chunk$set(
+  fig.align = 'center', 
+  fig.path = 'Figs/',
+  warning = FALSE, 
+  message = FALSE,
+  echo = FALSE
+)
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(reshape2)
+library(vegan)
+
+setwd("~/git_repos/chabs-virus/CRASS/mc-grep/")
+
+```
+
+
+
+
+# Microcystis spacer analyses 
+These are analyses from the extracted spacers from the two Microcystis DR types
+
+
+
+```{r}
+# from
+# http://stackoverflow.com/questions/26843995/r-read-fasta-files-into-data-frame-using-base-r-not-biostrings-and-the-like
+
+# Function
+ReadFasta <- function(file) {
+   # Read the file line by line
+   fasta <- readLines(file)
+   # Identify header lines
+   ind <- grep(">", fasta)
+   # Identify the sequence lines
+   s <- data.frame(ind = ind, from = ind + 1, to = c((ind - 1)[-1], length(fasta)))
+   # Process sequence lines 
+   seqs <- rep(NA, length(ind))
+   for (i in 1:length(ind)) {
+      seqs[i] <- paste(fasta[s$from[i]:s$to[i]], collapse = "")
+   }
+   # Create a data frame 
+   DF <- data.frame(name = gsub(">", "", fasta[ind]), sequence = seqs)
+   # Return the data frame as a result object from the function
+   return(DF)
+}
+
+
+```
+
+```{r}
+
+# List all spacer fasta files
+spacer_fasta_files <- list.files(pattern = "*Spacers-Group*", recursive = T)
+
+# Read in all spacer fasta files
+spacer_fastas <- lapply(spacer_fasta_files, function(x){
+  ReadFasta(x)
+})
+names(spacer_fastas) <- spacer_fasta_files
+
+
+# Add a column to each dataframe with the metagenome and DR type
+spacer_dfs <- Map( 
+  function(df, name) {
+    parsed_fnames <- matrix(
+      unlist(strsplit(name, split = "/")), 
+      ncol = 2, byrow = T
+    )
+    newdf <- df %>%
+      mutate(metagenome = parsed_fnames[ ,1]) %>%
+      mutate(DR = ifelse(grepl(parsed_fnames[ ,2], pattern = "ATTAGGGA"), "T",
+                    ifelse(grepl(parsed_fnames[ ,2], pattern = "ACTAGGGA"), "C",
+                           "other"))
+      )
+    
+    return(newdf)
+  }, 
+  spacer_fastas, 
+  spacer_fasta_files
+)
+
+# Rbind all the spacer df's
+spacer_bind <- do.call("rbind", args = spacer_dfs)
+
+# More formatting to add a column for filename, spacer coverage, and length
+spacer <- spacer_bind %>%
+  mutate(file = row.names(spacer_bind)) %>%
+  mutate(coverage = as.numeric(matrix(
+    unlist(strsplit(as.character(spacer_bind$name), split = "_")), ncol = 3, byrow = T)[ ,3]
+  )) %>%
+  dplyr::mutate(length = nchar(as.character(spacer_bind$sequence)))
+```
+
+
+## Basic spacer statistics
+
+
+
+```{r}
+ggplot(spacer, aes(x = length)) +
+  geom_histogram(binwidth = 2) +
+  ggtitle("Spacer lengths")
+
+
+```
+
+```{r}
+ggplot(spacer, aes(x = coverage)) +
+  geom_histogram(binwidth = 25) +
+  ggtitle("Spacer coverage")
+
+
+
+```
+
+
+## High coverage spacers
+```{r}
+max_coverage <- max(spacer$coverage)
+max_cover_sample <- spacer[which.max(spacer$coverage), "metagenome"]
+l <- length(which(spacer$coverage > 100))
+
+```
+The maximum coverage of any spacer is `r max_coverage`. It is found in sample 
+`r max_cover_sample`
+      
+There are `r l` spacers with more than 100x coverage
+
+```{r}
+
+spacer %>% group_by(metagenome) %>% summarise(mean(coverage))
+
+spacer %>% group_by(metagenome) %>% summarise(sd(coverage))
+# Find spacers with more than 100x coverage that appear in at least 2 samples
+high_covrg_sequences <- spacer %>%
+  filter(metagenome == "E0048-100" & coverage > 18 | 
+         metagenome == "E0108-100" & coverage > 100) %>%
+  mutate(coverageNorm = ifelse(metagenome == "E0048-100",
+                               (coverage - 7.5)/7.88, 
+                               (coverage - 32.44)/55.5)
+         )%>%
+  filter(coverageNorm>4)
+
+
+%>%
+  group_by(sequence) %>%
+  mutate(count = n()) %>%
+  filter(count > 1) 
+
+ggplot(high_covrg_sequences, aes(x = sequence, y = metagenome, fill = coverageNorm)) +
+  geom_tile()
+  
+
+```
+
+TTTTCCCCAGCAATCACCGGGGGGGGAGTATAAT is the only high coverage spacer shared between E0048-100 and E0108-100
+## Spacer alpha diversity 
+
+#### Spacer richness
+
+The number of spacers associated with the two Microcystis repeats vary a lot over time and fractions. The highest number of spacers are found during the two peak bloom dates in the 100um fraction. Does this actually mean there are  more spacers in the Microcystis community on these dates, or does it just mean we had better sampling depth because Microcystis is more abundant? Relative abundance of Microcystis is not that different between the 100um and 53um fractions on the peak dates, so i think this is a real result.
+
+```{r}
+# Number of spacers by DR type
+spacer_tally <- spacer %>% 
+  group_by(metagenome, DR) %>% 
+  tally() %>%
+  mutate(SampleID = substr(metagenome, 1, 5)) %>%
+  mutate(Fraction = substr(metagenome, 7, 10)) %>%
+  mutate(Fraction = factor(Fraction, levels = c("CNA", "100", "53", "3"))) 
+  
+
+ggplot(spacer_tally, aes(x = SampleID, y = n, group = DR, color = DR)) +
+  facet_grid(Fraction~.) +
+  geom_point() +
+  ylab("Richness") +
+  ggtitle("Spacer Richness across fractions, dates and DR types")
+
+
+```
+
+#### Spacer evenness
+Here I calculated the inverse simpson index of spacers for each DR type in each sample using coverage
+```{r}
+
+## T direct repeat
+spacer_dcast_T <- spacer %>%
+  filter(DR == "T") %>%
+  select(sequence, metagenome, coverage) %>%
+  dcast(formula = sequence ~ metagenome, value.var = "coverage")
+
+spacer_dcast_T[is.na(spacer_dcast_T)] <- 0
+rownames(spacer_dcast_T) <- spacer_dcast_T$sequence
+spacer_dcast_T <- spacer_dcast_T[ ,-1]
+
+invsimp_T <- vegan::diversity(spacer_dcast_T, index = "invsimpson", MARGIN = 2) %>%
+  data.frame(T = ., sample = names(.))
+
+
+## C direct repeat
+spacer_dcast_C <- spacer %>%
+  filter(DR == "C") %>%
+  select(sequence, metagenome, coverage) %>%
+  dcast(formula = sequence ~ metagenome, value.var = "coverage")
+
+spacer_dcast_C[is.na(spacer_dcast_C)] <- 0
+rownames(spacer_dcast_C) <- spacer_dcast_C$sequence
+spacer_dcast_C <- spacer_dcast_C[ ,-1]
+
+invsimp_C <- vegan::diversity(spacer_dcast_C, index = "invsimpson", MARGIN = 2) %>%
+  data.frame(C = ., sample = names(.))
+
+spacer_invsimp <- invsimp_T %>%
+  left_join(invsimp_C, by = "sample") %>%
+  melt(id.vars = "sample") %>%
+  mutate(SampleID = substr(sample, 1, 5)) %>%
+  mutate(Fraction = substr(sample, 7, 10)) %>%
+  mutate(Fraction = factor(Fraction, levels = c("CNA", "100", "53", "3"))) %>%
+  rename(DR = variable)
+
+ggplot(spacer_invsimp, aes(x = SampleID, y = value, group = DR, color = DR)) +
+  facet_grid(Fraction ~.) +
+  geom_point() +
+  ylab("Inverse Simpson") +
+  ggtitle("Spacer alpha diversity through time")
+```
+
+
+## Spacer overlap over time
+
+How much spacer overlap is there over time? 
+
+There is a lot of spacer overlap between the two peak bloom dates (aug 4 and sept 29) in the 100um fraction - about 400 spacers or half of the total spacers in those samples. This is way more overlap than we see between two samples taken from the same date in different fractions. This data suggests that there are different populations across the fractions.
+
+In terms of the 100um fraction, 
+
+
+
+However, we need to remember that E0048 (august 4) has two DR types but E0108 (Sep 29) has only one DR type. 
+
+This is a perplexing result because based on the metagenome, the toxin gene is very abundant in the 100um fraction on August 4th (>1 copy per microcystis 16s) and then very rare in that fraction on September 29th (~.3 copies per microcystis 16s). We had previously assumed that this meant that a secondary population rose to abundance in the later part of the bloom. , and that the population in the 100um fraction actually lost its toxin gene during the bloom. How else would you explain such high overlap in spacers? We need to look at the spacer graphs and the order to confirm a population split.  
+```{r}
+
+## Calculate pairwise overlaps
+
+# List out all pairwise combinations
+metaG_combs <- t(combn(unique(spacer$metagenome), 2))
+
+spacer_overlaps <- apply(X = metaG_combs, MARGIN = 1, function(x) {
+  samp1 <- filter(spacer, metagenome == x[1])
+  samp2 <- filter(spacer, metagenome == x[2])
+  return(length(intersect(samp1$sequence, samp2$sequence)))
+})
+
+spacer_overlaps_df <- data.frame(metaG_combs, spacer_overlaps) 
+
+ggplot(spacer_overlaps_df, aes(x = X1, y = X2, fill = spacer_overlaps)) + 
+  geom_tile() + 
+  theme(axis.text.x = element_text(hjust = 1, vjust = 1, angle = 45))
+
+```
+
+Now, let's look at just the spacers with at least 10x coverage and
+just the spacers associated with the "T" direct repeat. Remember that the "T"
+repeat is the only repeat present on Sept 29.      
+
+We still see really strong conservation of spacers across time within fractions.       
+
+For samples E0048-100 and E0108-100 there are 100 shared >10x spacers for DR type T. E0048-100 has 143 spacers and E0108 has 264.     
+
+For samples E0066-100 and E0108-100 there are 155 shared >10x spacers for DR type T. E066-100 has 175 spacers.
+
+```{r}
+spacer_abundant <- spacer %>%
+  filter(coverage > 1) %>%
+  filter(DR == "T")
+
+metaG_combs <- t(combn(unique(spacer_abundant$metagenome), 2))
+
+spacer_overlaps <- apply(X = metaG_combs, MARGIN = 1, function(x) {
+  samp1 <- filter(spacer_abundant, metagenome == x[1])
+  samp2 <- filter(spacer_abundant, metagenome == x[2])
+  return(length(intersect(samp1$sequence, samp2$sequence)))
+})
+
+spacer_overlaps_df <- data.frame(metaG_combs, spacer_overlaps) 
+
+ggplot(spacer_overlaps_df, aes(x = X1, y = X2, fill = spacer_overlaps)) + 
+  geom_tile() + 
+  theme(axis.text.x = element_text(hjust = 1, vjust = 1, angle = 45))
+
+spacer_abundant %>%
+  group_by(metagenome) %>% 
+  tally() 
+```
+
+Now, let's look at just the spacers with at least 10x coverage and
+just the spacers associated with the "C" direct repeat. 
+
+There is no similarity between the E0048 (August 4th) sample and any other spacers
+with that repeat on other dates or in other fractions. 
+
+
+```{r}
+spacer_abundant <- spacer %>%
+  filter(coverage > 5) %>%
+  filter(DR == "C")
+
+metaG_combs <- t(combn(unique(spacer_abundant$metagenome), 2))
+
+spacer_overlaps <- apply(X = metaG_combs, MARGIN = 1, function(x) {
+  samp1 <- filter(spacer_abundant, metagenome == x[1])
+  samp2 <- filter(spacer_abundant, metagenome == x[2])
+  return(length(intersect(samp1$sequence, samp2$sequence)))
+})
+
+spacer_overlaps_df <- data.frame(metaG_combs, spacer_overlaps) 
+
+ggplot(spacer_overlaps_df, aes(x = X1, y = X2, fill = spacer_overlaps)) + 
+  geom_tile() + 
+  theme(axis.text.x = element_text(hjust = 1, vjust = 1, angle = 45))
+
+spacer_abundant %>%
+  group_by(metagenome) %>% 
+  tally() 
+```
+
+# Virome spacer hits
+
+These are analyses of the BLAST hits between viral contigs from our viromes and CRISPR spacers from our microbial metagenome
+
+```{r}
+
+spacer_hit_filenames <- list.files(pattern = "*allVirome*", recursive = T)
+
+# Read in all spacer fasta files
+spacer_hit_files <- lapply(spacer_hit_filenames, function(x){
+  if (file.info(x)$size > 0) {
+    read.csv(x, sep = "\t", header = F)
+  }
+})
+names(spacer_hit_files) <- spacer_hit_filenames
+
+
+# Add a column to each dataframe with the metagenome, virome, and DR type
+spacer_hit_dfs <- Map( 
+  function(df, name) {
+    
+    if (!is.null(df)) {
+      df <- df %>%
+        select(V1, V2, V3, V4, V11) %>%
+        rename(Spacer = V1, VirContig = V2, Match = V3, SpLength = V4, Escore = V11) 
+    } else {
+      df <- data.frame(Spacer = NA, VirContig = NA, Match = NA, SpLength = NA, Escore = NA)
+      
+    }
+    
+    parsed_fnames <- matrix(
+      unlist(strsplit(name, split = "/")), 
+      ncol = 3, byrow = T
+    )
+     
+    newdf <- df %>%
+      mutate(metagenome = parsed_fnames[ ,1]) %>%
+      mutate(virome = substr(parsed_fnames[ ,2], 1, 5)) %>%
+      mutate(DR = ifelse(grepl(parsed_fnames[ ,2], pattern = "ATTAGGGA"), "T",
+                  ifelse(grepl(parsed_fnames[ ,2], pattern = "ACTAGGGA"), "C",
+                         "other"))
+      )
+    
+    # Return new data fame
+    return(newdf)
+  }, 
+  spacer_hit_files, 
+  spacer_hit_filenames
+)
+
+# Rbind all the spacer df's
+spacer_hit_bind <- do.call("rbind", args = spacer_hit_dfs)
+
+spacer_hits <- spacer_hit_bind %>%
+  mutate(file = row.names(spacer_hit_bind)) %>%
+  mutate(metaGDate = substr(metagenome, 1, 5)) %>%
+  mutate(metaGFraction = substr(metagenome, 7, 10)) %>%
+  mutate(VirContig = gsub(x = VirContig, pattern = "-115", replacement = ""))
+
+spacer_hits$metaGFraction <- factor(spacer_hits$metaGFraction, levels = c("CNA", "100", "53", "3")) 
+
+#   mutate(SpCoverage = ifelse(!is.na(Spacer), 
+#    matrix(unlist(strsplit(as.character(Spacer), split = "_")), ncol = 3, byrow = T)[ ,3],
+#    NA 
+#  ))
+
+
+```
+
+```{r}
+countsum <- spacer_hits %>%
+  group_by(metaGDate, metaGFraction, virome, DR) %>%
+  tally() %>%
+  rename(hits = n) 
+  #mutate(hits = ifelse(hits == 1, 0, hits))
+
+countsum[countsum$hits == 1, "hits"] <- 0
+
+countsumT <- filter(countsum, DR == "T")
+countsumC <- filter(countsum, DR == "C")
+```
+
+```{r}
+count100um <- filter(countsum, metaGFraction == "100")
+
+ggplot(count100um, aes(x = metaGDate, y = virome, fill = hits)) +
+  facet_grid(DR~.) +
+  geom_tile() +
+  xlab("metagenome") +
+  ggtitle("Blast hits between metaG spacers in 100um and viromes \nfor Microcystis CRISPR repeats")
+
+countCNA <- filter(countsum, metaGFraction == "CNA")
+
+ggplot(countCNA, aes(x = metaGDate, y = virome, fill = hits)) +
+  facet_grid(DR~.) +
+  geom_tile() +
+  xlab("metagenome") +
+  ggtitle("Blast hits between metaG spacers in full community and viromes \nfor Microcystis CRISPR repeats")
+
+
+```
+
+```{r}
+ggplot(countsumT, aes(x = metaGDate, y = virome, fill = hits)) +
+  facet_grid(metaGFraction~.) +
+  geom_tile()
+
+ggplot(countsumC, aes(x = metaGDate, y = virome, fill = hits)) +
+  facet_grid(metaGFraction~.) +
+  geom_tile()
+
+
+
+```
+
+Hits to the same contig
+```{r}
+ss <- spacer_hits %>%
+  group_by(metaGDate, metaGFraction, virome, DR, VirContig) %>%
+  tally() %>%
+  rename(hits = n) 
+
+ss[which.max(ss$hits), ]
+```
+
+# Literature
+
+#### Rath et al 2015 Biochimie 
+
+- length of DR's are 21-48     
+- length of spacers are 26-72    
+- number of spacers vary from a few to several hundred    
+- Genomes can have single or multiple CRISPR loci
+
+Methanocaldococcus has 18 CRISPRs and 191 spacers - makes up 1% of genome    
+
+Not all CRISPR loci have adjacent cas genes - instead rely on trans encoded factors
+leader - conserved sequence located upstream of CRISPr
+
+**Cas proteins:**     
+- Cas1 and Cas2 are virtually universal, others are not      
+Type 1, II and III Crispr-cas systems, newly proprosed Type IV complex which contains Cascade genes but no crispr, cas1 or cas2. Guided by protein-DNA interaction, not by crRNA. Type IV could be ancestral innate immune system that became adaptive by associating with transposon like element containing cas1 and cas2
+
+CRISPR-cas are probably mobile genetic elements that tranfer frequently horizontally
+
+AMD system where no two cells had the same spacers, viruses used recombination to diversify rapidly, making any but the most recent spacers ineffectual
+
+
+
+small number of spacers dominates but relative abundance oscillates rapidly [29]
+
+**Primed spacer acquisition:**    
+phages can still replicate in populations with one but not two spacers targeting them? see [30]
+
+Adaptation has been shown to be coupled to the interference machinery through primed spacer acquisition, which occurs when there is a targeting spacer already present in the CRISPR array. The interference machinery and a pre-existing spacer accelerate the acquisition of subsequent spacers from the same target. Primed spacer acquisition was first described in the Type I-E system in E. coli [37], but has subsequently been reported for I-B in H. hispanica [34] and I-F in P. atrosepticum [39], but **so far not in any Type II or III system**. Priming seems to occur by slightly different processes in the described cases but the exact molecular mechanisms remain unknown. In Type I-F systems, Cas2 is fused to Cas3 [13], further indicating a direct connection between the adaptation and interference processes. Interestingly, spacers with several mismatches that are incapable of providing protection against the target still induce primed spacer acquisition [49]. It should be noted that although Cas9 is required for spacer acquisition in the Type II-A system, this is not an example of primed spacer acquisition as the requirement is not dependent on a pre-existing spacer against the target [20]. The advantages of primed spacer acquisition are obvious: multiple spacers provide increased resistance against invading DNA, and make it more difficult for target to evolve escape mutants as several sites would need to be changed simultaneously.     
+
+In an unusual turn of events, it has been demonstrated that the CRISPR-Cas system can be used by viruses to promote infection. Vibrio cholerae ICP1 phages carry a Type I-F CRISPR–Cas system that targets a host locus, PLE, containing an anti-phage system [89]. After entry of the phage genome into the cell, the viral crRNAs and cas genes are expressed to enable infection of the V. cholerae host. If the host or the CRISPR is engineered so that the viral CRISPR-Cas system no longer matches the PLE, the ability of ICP1 to infect is largely lost. The few phages that manage to infect do so by having picked up a new spacer targeting the host locus, demonstrating that the viruses can use the full adaptive potential of the CRISPR-Cas system.
+
+
+
+**Knowledge gaps: **      
+- how are protospacers selected? They are next to a PAM, cas9 plays a role in identifying PAMs       
+- not known whether protospacer is copied or cut out of the target      
+- when and why are spacers deleted?       
+- How does primed spacer acquisition occur ... link to adaptiveness     
+
+
+

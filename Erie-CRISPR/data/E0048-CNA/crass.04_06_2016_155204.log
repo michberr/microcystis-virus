@@ -1,0 +1,31 @@
+----------------------------------------------------------------------
+----------------------------------------------------------------------
+-- 04/06/2016_03:52  --  CRisprASSembler (crass) --  Version: 0.3.12 --
+----------------------------------------------------------------------
+----------------------------------------------------------------------
+
+0s	I   Parsing reads in 1 files
+0s	I   Parsing file: myFormatGrepHits.fasta
+0s	I   finished processing file:myFormatGrepHits.fasta
+0s	I   Finished file: myFormatGrepHits.fasta
+0s	I   Finished file: myFormatGrepHits.fasta
+0s	I   Reducing list of potential DRs (1): Initial clustering
+0s	I   Reticulating splines...
+0s	I   Parsing file: myFormatGrepHits.fasta
+0s	I   Searching complete. 1653 direct repeat variants have been found
+0s	I   Reducing list of potential DRs (2): Cluster refinement and true DR finding
+0s	I   Identifying a master DR
+0s	I   Populating consensus array
+0s	I   Calculating consensus sequence from aligned reads
+0s	I   Consensus DR: TAGGGATTGAAAC
+0s	I   Killed: {TAGGGATTGAAAC} cause' the consensus was too short... (13 ,0)
+0s	I   Identifying a master DR
+0s	I   Populating consensus array
+0s	I   Calculating consensus sequence from aligned reads
+0s	I   Consensus DR: GAACGCCATACAAATTAAGTACATAAGGCTAGAATATTGTTTCAATCCCTAGTAGGGTTTAAGATTAATTGGAACCTTGCCATACAAATTAAGTACATAAGGCTAGAATATTG
+0s	I   Killed: {GAACGCCATACAAATTAAGTACATAAGGCTAGAATATTGTTTCAATCCCTAGTAGGGTTTAAGATTAATTGGAACCTTGCCATACAAATTAAGTACATAAGGCTAGAATATTG} cause' it was too long
+0s	I   Cleaning graphs
+0s	I   Detecting Flanker sequences
+0s	I   Removing CRISPRs with low numbers of spacers
+0s	I   Writing XML output to "./crass.crispr"
+0s	I   all done!
